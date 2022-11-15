@@ -22,7 +22,7 @@ class Solution(object):
             if count_ == index_:
                 head.next = x.next.next
                 head.next.val = x.next.val
-                return head.next
+                break
             x = head.next
             count_ += 1
 
@@ -42,16 +42,3 @@ class Solution(object):
 l = ListNode(1, ListNode(2, ListNode(3, ListNode(4, ListNode(5, None)))))
 s = Solution()
 print(s.removeNthFromEnd(l, 2))
-
-
-
-
-
-
-
-
-
-
-
-
-
