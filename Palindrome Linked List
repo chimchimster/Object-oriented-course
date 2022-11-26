@@ -7,61 +7,42 @@ class ListNode:
      self.next = next
 
 class Solution:
-    def isPalindrome (self, head: Optional[ListNode]) -> bool:
-        length = self.find_len(head)
-        reversed = self.reverse_list(head, length)
-
-        if length == 1:
-            return True
-
-        return self.check_pal(head, reversed, length)
-
-
-    def check_pal(self, head, reversed, length):
-        count = 0
+    def isPalindrome(self, head: Optional[ListNode]) -> bool:
+        head1, head2 = head, head
+        d, count = self.create_dict(head1)
+        x = count // 2
         while head:
-            if head.val == reversed.val:
+            if head.val == d[count-1].val:
                 head = head.next
-                reversed = reversed.next
-                count += 1
-                if count == length // 2:
-                    break
+                count -= 1
+                if count == x:
+                    return True
                 continue
             else:
                 return False
-        return True
+
+    def create_dict(self, head):
+        d = {}
+        count = 0
+        while head:
+            d[count] = head
+            head = head.next
+            count += 1
+        return d, count
 
 
-    def find_len(self, head):
+    def checking_length(self, head):
         h = head
         count = 0
         while h:
+            h = head.next
             count += 1
-            h = h.next
         return count
-
-
-    def reverse_list(self, head, length):
-        reduce = 1
-        out = last_elem = self.find_last(head, length, reduce)
-        reduce += 1
-        while length - reduce > -1:
-            last_elem.next = self.find_last(head, length, reduce)
-            reduce += 1
-            last_elem = last_elem.next
-        last_elem.next = None
-        return out
-
-
-    def find_last(self, head, length, reduce):
-        h = head
-        for i in range(length-reduce):
-            h = h.next
-        return h
-
 
 s = Solution()
 print(s.isPalindrome(ListNode(1, ListNode(2, ListNode(2, ListNode(1, None))))))
 print(s.isPalindrome(ListNode(1, ListNode(1, ListNode(2, ListNode(1, None))))))
 print(s.isPalindrome(ListNode(1, ListNode(2, None))))
 print(s.isPalindrome(ListNode(1, ListNode(2, ListNode(3, None)))))
+
+
