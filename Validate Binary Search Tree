@@ -27,6 +27,8 @@ class Solution:
                         list_of_branches += [branch.right]
             list_of_nodes = list_of_branches
         return True
+
+
 s = Solution()
 print(s.isValidBST(TreeNode(2, TreeNode(1, ), TreeNode(3, ))))
 print(s.isValidBST(TreeNode(5, TreeNode(1, ), TreeNode(4, TreeNode(3, ), TreeNode(6, )))))
