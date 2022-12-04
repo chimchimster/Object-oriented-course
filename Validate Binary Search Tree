@@ -15,7 +15,7 @@ class Solution:
             return True
         while list_of_nodes:
             list_of_brances = []
-            for branch in list_of_branches:
+            for branch in list_of_nodes:
                 if branch:
                     if branch.left:
                         if branch.left.val >= branch.val:
