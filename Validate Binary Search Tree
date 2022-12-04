@@ -9,23 +9,23 @@ class TreeNode:
 
 class Solution:
     def isValidBST(self, root: Optional[TreeNode]) -> bool:
-        p = root
-        v = [p]
-        if not p.right and not p.left:
+        node = root
+        list_of_nodes = [node]
+        if not node.right and not node.left:
             return True
-        while v:
-            vn = []
-            for x in v:
-                if x:
-                    if x.left:
-                        if x.left.val >= x.val:
+        while list_of_nodes:
+            list_of_brances = []
+            for branch in list_of_branches:
+                if branch:
+                    if branch.left:
+                        if branch.left.val >= branch.val:
                             return False
-                        vn += [x.left]
-                    if x.right:
-                        if x.right.val <= x.val:
+                        list_of_branches += [branch.left]
+                    if branch.right:
+                        if branch.right.val <= branch.val:
                             return False
-                        vn += [x.right]
-            v = vn
+                        list_of_branches += [branch.right]
+            list_of_nodes = list_of_branches
         return True
 s = Solution()
 print(s.isValidBST(TreeNode(2, TreeNode(1, ), TreeNode(3, ))))
