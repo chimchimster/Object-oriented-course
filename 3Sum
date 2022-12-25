@@ -1,0 +1,39 @@
+from typing import List
+
+
+class Solution:
+    def threeSum(self, nums: List[int]) -> List[List[int]]:
+        used = []
+        x, y, z = 0, 1, 2
+        lst = list()
+        if len(nums) == 3 and sum(nums) == 0:
+            lst.append(nums)
+            return lst
+        else:
+            while x < len(nums) - 2:
+                while y < len(nums) - 1:
+                    while z < len(nums):
+                        lst = list()
+                        if nums[x] + nums[y] + nums[z] == 0 and x != y and y != z and z != x:
+                            lst.append([nums[x], nums[y], nums[z]])
+                            if lst not in used:
+                                used.append(lst)
+                        z += 1
+                    z = y
+                    y += 1
+                y = x
+                x += 1
+        result = []
+        for wrapper_lst in used:
+            for lst in wrapper_lst:
+                lst.sort()
+                result.append(tuple(lst))
+        return [list(x) for x in list(set(result))]
+
+
+s = Solution()
+print(s.threeSum([-1,0,1,2,-1,-4]))
+print(s.threeSum([0,1,1]))
+print(s.threeSum([0,0,0]))
+print(s.threeSum([0,0,0,0]))
+print(s.threeSum([3,-2,1,0]))
