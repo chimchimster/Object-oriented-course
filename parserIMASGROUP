@@ -1,0 +1,109 @@
+import datetime
+import sqlite3
+import time
+
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+
+def create_data_base():
+    connection = sqlite3.connect('db.sqlite')
+    cursor = connection.cursor()
+
+    cursor.execute("CREATE TABLE resource (resource_id INTEGER PRIMARY KEY AUTOINCREMENT, resource_name VARCHAR(255), resource_url VARCHAR(255), top_tag VARCHAR(255), bottom_tag VARCHAR(255), title_cut VARCHAR(255), date_cut VARCHAR(255))")
+    cursor.execute("CREATE TABLE items (id INTEGER PRIMARY KEY AUTOINCREMENT, res_id INTEGER, link VARCHAR(255), title TEXT, content TEXT, nd_date INTEGER, s_date INTEGER, not_date DATE, FOREIGN KEY(res_id) REFERENCES resource(resource_id))")
+
+    cursor.execute("INSERT INTO resource (resource_name, resource_url, top_tag, bottom_tag, title_cut, date_cut) VALUES (?,?,?,?,?,?)", ('scientificrussia', 'https://scientificrussia.ru/news', "//div[@class='title']//a", "//div[@itemprop='articleBody']//p", "//h1[@itemprop='name headline']", "prop time"))
+    cursor.execute("INSERT INTO resource (resource_name, resource_url, top_tag, bottom_tag, title_cut, date_cut) VALUES (?,?,?,?,?,?)", ('nur', 'https://www.nur.kz/society/', "//article[@class='block-infinite__item-content']//a", "//p[@class='align-left formatted-body__paragraph']", "//h1[@class='main-headline js-main-headline']",  "datetime__wrapper"))
+    connection.commit()
+
+
+def scrapping_main_page(url, tag_elements):
+    links = []
+    driver = webdriver.Chrome()
+    driver.get(url)
+    elements = driver.find_elements(By.XPATH, tag_elements)
+
+    for e in elements:
+        links.append(e.get_attribute('href'))
+
+    return links
+
+
+def scarpping_news_page(page, tag_content, tag_title, tag_date):
+    driver = webdriver.Chrome()
+    driver.get(page)
+
+    title = driver.find_element(By.XPATH, tag_title)
+    date = driver.find_element(By.CLASS_NAME, tag_date)
+    content = driver.find_elements(By.XPATH, tag_content)
+
+    return {'link': page, 'title': title.text, 'content': ''.join([_.text for _ in content]), 'date': convert_text_to_data(date.text)}
+
+
+def convert_text_to_data(date):
+    monthes = {1: 'января', 2: 'февраля', 3: 'марта', 4: 'апреля', 5: 'мая', 6: 'июня', 7: 'июля', 8: 'августа',
+               9: 'сентября', 10: 'октября', 11: 'ноября', 12: 'декабря'}
+    try:
+        date = date.split(',')
+        for key, val in monthes.items():
+            if val in date[1]:
+                new_date = date[1].split()
+                if key > 10:
+                    new_date = new_date[0] + "." + str(key) + "." + new_date[2]
+                else:
+                    new_date = new_date[0] + "." + "0" + str(key) + "." + new_date[2]
+                print(new_date)
+                return new_date
+    except:
+        try:
+            date = date[0][:10]
+            return str(date)
+        except:
+            pass
+
+
+def insert_into_db(data):
+    connection = sqlite3.connect('db.sqlite')
+    cursor = connection.cursor()
+
+    cursor.execute("INSERT INTO items (link, title, content, not_date, s_date, nd_date) VALUES (?,?,?,?,?,?)", (data['link'], data['title'], data['content'], data['date'], time.time(), datetime.datetime.strptime(data['date'], "%d.%m.%Y").timestamp()))
+    connection.commit()
+
+
+def get_urls_from_db():
+    connection = sqlite3.connect('db.sqlite')
+    cursor = connection.cursor()
+
+    cursor.execute("SELECT resource_url FROM resource ORDER BY resource_id")
+    connection.commit()
+    return [item[0] for item in cursor.fetchall()]
+
+def get_tags_from_url(url):
+    connection = sqlite3.connect('db.sqlite')
+    cursor = connection.cursor()
+
+    cursor.execute(f"SELECT top_tag, bottom_tag, title_cut, date_cut FROM resource WHERE resource_url='{url}'")
+    connection.commit()
+    return [item for item in cursor.fetchall()]
+
+def main():
+    try:
+        create_data_base()
+    except:
+        pass
+    try:
+        urls = get_urls_from_db()
+        for url in urls:
+            elements, content, title, date = get_tags_from_url(url)[0]
+            links = scrapping_main_page(url, elements)
+            for link in links:
+                data = scarpping_news_page(link, content, title, date)
+                insert_into_db(data)
+    except:
+        pass
+    finally:
+        print('Работа парсера закончена')
+
+
+if __name__ == '__main__':
+    main()
