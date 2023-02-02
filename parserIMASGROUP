@@ -14,17 +14,20 @@ def create_data_base():
 
     cursor.execute("INSERT INTO resource (resource_name, resource_url, top_tag, bottom_tag, title_cut, date_cut) VALUES (?,?,?,?,?,?)", ('scientificrussia', 'https://scientificrussia.ru/news', "//div[@class='title']//a", "//div[@itemprop='articleBody']//p", "//h1[@itemprop='name headline']", "prop time"))
     cursor.execute("INSERT INTO resource (resource_name, resource_url, top_tag, bottom_tag, title_cut, date_cut) VALUES (?,?,?,?,?,?)", ('nur', 'https://www.nur.kz/society/', "//article[@class='block-infinite__item-content']//a", "//p[@class='align-left formatted-body__paragraph']", "//h1[@class='main-headline js-main-headline']",  "datetime__wrapper"))
+
     connection.commit()
 
 
 def scrapping_main_page(url, tag_elements):
     links = []
+
     driver = webdriver.Chrome()
     driver.get(url)
+
     elements = driver.find_elements(By.XPATH, tag_elements)
 
-    for e in elements:
-        links.append(e.get_attribute('href'))
+    for element in elements:
+        links.append(element.get_attribute('href'))
 
     return links
 
@@ -52,21 +55,24 @@ def convert_text_to_data(date):
                     new_date = new_date[0] + "." + str(key) + "." + new_date[2]
                 else:
                     new_date = new_date[0] + "." + "0" + str(key) + "." + new_date[2]
-                print(new_date)
+
                 return new_date
     except:
         try:
             date = date[0][:10]
+
             return str(date)
         except:
-            pass
+            ValueError('Некорректно обработана дата')
 
 
 def insert_into_db(data):
     connection = sqlite3.connect('db.sqlite')
     cursor = connection.cursor()
 
-    cursor.execute("INSERT INTO items (link, title, content, not_date, s_date, nd_date) VALUES (?,?,?,?,?,?)", (data['link'], data['title'], data['content'], data['date'], time.time(), datetime.datetime.strptime(data['date'], "%d.%m.%Y").timestamp()))
+    res_id = cursor.execute(f"SELECT resource_id FROM resource WHERE resource_url LIKE '{data['link'][:10]}%'").fetchall()[0][0]
+    cursor.execute("INSERT INTO items (link, title, content, not_date, s_date, nd_date, res_id) VALUES (?,?,?,?,?,?,?)", (data['link'], data['title'], data['content'], data['date'], time.time(), datetime.datetime.strptime(data['date'], "%d.%m.%Y").timestamp(), res_id))
+
     connection.commit()
 
 
@@ -75,22 +81,28 @@ def get_urls_from_db():
     cursor = connection.cursor()
 
     cursor.execute("SELECT resource_url FROM resource ORDER BY resource_id")
+
     connection.commit()
+
     return [item[0] for item in cursor.fetchall()]
+
 
 def get_tags_from_url(url):
     connection = sqlite3.connect('db.sqlite')
     cursor = connection.cursor()
 
     cursor.execute(f"SELECT top_tag, bottom_tag, title_cut, date_cut FROM resource WHERE resource_url='{url}'")
+
     connection.commit()
+
     return [item for item in cursor.fetchall()]
+
 
 def main():
     try:
         create_data_base()
     except:
-        pass
+        ValueError('База уже существует!')
     try:
         urls = get_urls_from_db()
         for url in urls:
@@ -100,7 +112,7 @@ def main():
                 data = scarpping_news_page(link, content, title, date)
                 insert_into_db(data)
     except:
-        pass
+        ValueError('Нет данных в Базе для парсинга')
     finally:
         print('Работа парсера закончена')
 
