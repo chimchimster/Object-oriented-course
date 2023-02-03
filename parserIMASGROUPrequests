@@ -1,0 +1,213 @@
+import sqlite3, requests, time, datetime
+
+from bs4 import BeautifulSoup
+
+
+class ParseMainPage:
+    def __init__(self, main_page, search_tag, search_class, search_link_tag='a'):
+        self.main_page = main_page
+        self.search_tag = search_tag
+        self.search_class = search_class
+        self.search_link_tag = search_link_tag
+        self.links = []
+
+    def push_links(self):
+        request = requests.get(self.main_page)
+        soup = BeautifulSoup(request.text, 'html.parser')
+
+        set_of_links = set(soup.find(self.search_tag, class_=self.search_class).find_all(self.search_link_tag, href=True))
+        for link in set_of_links:
+            self.links.append(link['href'])
+
+        self.links =  self.links_adaptation(self.links, self.main_page)
+
+
+    @staticmethod
+    def links_adaptation(links, main_page):
+
+        for index in range(len(links)):
+            if not links[index].startswith(main_page):
+                links[index] = main_page.rstrip('news/') + links[index]
+
+        return [link for link in links if '/tags/' not in link]
+
+
+class ParseUniquePage:
+    def __init__(self, resource_id, unique_page, content_class, title_class, date_class, content_tag='div', title_tag='h1',  date_tag='time', search_paragraph_tag='p'):
+        self.resource_id = resource_id
+        self.unique_page = unique_page
+        self.title_class = title_class
+        self.content_class = content_class
+        self.date_tag = date_tag
+        self.date_class = date_class
+        self.title_tag = title_tag
+        self.content_tag = content_tag
+        self.content_tag = content_tag
+        self.search_paragraph_tag = search_paragraph_tag
+        self.data_collection = []
+        self.s_date = time.time()
+
+
+    def push_data_to_collection(self):
+        request = requests.get(self.unique_page)
+        soup = BeautifulSoup(request.text, 'html.parser')
+
+        title = soup.find(self.title_tag, class_=self.title_class)
+        content = soup.find(self.content_tag, class_=self.content_class).find_all(self.search_paragraph_tag)
+        date = soup.find(self.date_tag, self.date_class)
+
+        self.data_collection.append(
+            (
+                self.resource_id,
+                self.unique_page,
+                title.text.strip(),
+                ''.join([c.text for c in content]).strip(),
+                datetime.datetime.strptime(self.convert_text_to_date(date.text.strip()), "%d.%m.%Y").timestamp(),
+                self.s_date,
+                self.convert_text_to_date(date.text.strip())
+             )
+        )
+
+    @staticmethod
+    def convert_text_to_date(date):
+        months = {1: 'января', 2: 'февраля', 3: 'марта', 4: 'апреля', 5: 'мая', 6: 'июня', 7: 'июля', 8: 'августа',
+                  9: 'сентября', 10: 'октября', 11: 'ноября', 12: 'декабря'}
+
+        try:
+            date = date.split(',')
+            checking_date = ''
+
+            if len(date) == 2:
+                checking_date = date[0]
+            elif len(date) == 3:
+                checking_date = date[1]
+            else:
+                try:
+                    date = date[0][:10]
+                    return str(date)
+                except:
+                    ValueError('Incorrect date appears!')
+
+            for key, val in months.items():
+                if val in checking_date:
+                    new_date = checking_date.split()
+                    if key > 10:
+                        new_date = new_date[0] + "." + str(key) + "." + new_date[2]
+                    else:
+                        new_date = new_date[0] + "." + "0" + str(key) + "." + new_date[2]
+
+                    return new_date
+        except:
+            pass
+
+
+
+class ResourceValue:
+    def __init__(self, resource_name, resource_url, top_tag, bottom_tag, title_cut, date_cut):
+        self.resource_name = resource_name
+        self.resource_url = resource_url
+        self.top_tag = top_tag
+        self.bottom_tag = bottom_tag
+        self.title_cut = title_cut
+        self.date_cut = date_cut
+
+class StoreResourceValues:
+    def __init__(self):
+        self.resource_collection = []
+
+    def push_back(self, item):
+        self.resource_collection.append(item)
+
+
+class DateBase:
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+    def __init__(self, db_name):
+        self.db_name = db_name
+
+    def create_db(self):
+        connection = sqlite3.connect(self.db_name)
+        cursor = connection.cursor()
+
+        cursor.execute(
+            "CREATE TABLE resource (resource_id INTEGER PRIMARY KEY AUTOINCREMENT, resource_name VARCHAR(255), resource_url VARCHAR(255), top_tag VARCHAR(255), bottom_tag VARCHAR(255), title_cut VARCHAR(255), date_cut VARCHAR(255))")
+        cursor.execute(
+            "CREATE TABLE items (id INTEGER PRIMARY KEY AUTOINCREMENT, res_id INTEGER, link VARCHAR(255), title TEXT, content TEXT, nd_date INTEGER, s_date INTEGER, not_date DATE, FOREIGN KEY(res_id) REFERENCES resource(resource_id))")
+
+        connection.commit()
+
+    def add_data_to_resource(self, collection):
+        connection = sqlite3.connect(self.db_name)
+        cursor = connection.cursor()
+
+        collection_to_db = []
+        for object in collection.resource_collection:
+           collection_to_db.append(tuple(object.__dict__.values()))
+
+        cursor.executemany('INSERT INTO resource (resource_name, resource_url, top_tag, bottom_tag, title_cut, date_cut) VALUES (?,?,?,?,?,?)', collection_to_db)
+
+        connection.commit()
+
+    def get_data_for_parse(self):
+        connection = sqlite3.connect(self.db_name)
+        cursor = connection.cursor()
+
+        cursor.execute("SELECT resource_url, top_tag, bottom_tag, title_cut, date_cut, resource_id  FROM resource")
+
+        connection.commit()
+
+        return [item for item in cursor.fetchall()]
+
+    def add_data_to_items(self, scrapped_data):
+        connection = sqlite3.connect(self.db_name)
+        cursor = connection.cursor()
+
+        cursor.executemany("INSERT INTO items (res_id, link, title, content, nd_date, s_date, not_date) VALUES (?,?,?,?,?,?,?)", scrapped_data)
+
+        connection.commit()
+
+
+def main():
+    database = DateBase('db.sqlite3')
+    try:
+        database.create_db()
+    except:
+        ValueError('DataBase already exists!')
+
+    resource_values = StoreResourceValues()
+    resource_values.push_back(ResourceValue('nur', 'https://www.nur.kz/society/', 'ul,block-infinite__list', 'div,formatted-body io-article-body', 'h1,main-headline js-main-headline', 'time,datetime datetime--publication'))
+    resource_values.push_back(ResourceValue('scientificrussia', 'https://scientificrussia.ru/', 'div,announce-list with-image normal three-column', 'article,article', 'h1,', 'time,'))
+
+    database.add_data_to_resource(resource_values)
+    resource_data = database.get_data_for_parse()
+
+    scrapped_data = []
+
+    for data in resource_data:
+        parse_main_page = ParseMainPage(data[0], data[1].split(',')[0], data[1].split(',')[1])
+        parse_main_page.push_links()
+
+        for link in parse_main_page.links:
+            parse_unique_page = ParseUniquePage(data[-1],
+                                                link,
+                                                data[2].split(',')[1],
+                                                data[3].split(',')[1],
+                                                data[4].split(',')[1],
+                                                content_tag=data[2].split(',')[0],
+                                                title_tag=data[3].split(',')[0],
+                                                date_tag=data[4].split(',')[0],
+                                                )
+            parse_unique_page.push_data_to_collection()
+            scrapped_data.append(*parse_unique_page.data_collection)
+
+    database.add_data_to_items(scrapped_data)
+
+
+
+if __name__ == '__main__':
+    main()
