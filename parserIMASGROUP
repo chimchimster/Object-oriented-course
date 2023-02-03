@@ -5,6 +5,7 @@ import time
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 
+
 def create_data_base():
     connection = sqlite3.connect('db.sqlite')
     cursor = connection.cursor()
@@ -13,7 +14,7 @@ def create_data_base():
     cursor.execute("CREATE TABLE items (id INTEGER PRIMARY KEY AUTOINCREMENT, res_id INTEGER, link VARCHAR(255), title TEXT, content TEXT, nd_date INTEGER, s_date INTEGER, not_date DATE, FOREIGN KEY(res_id) REFERENCES resource(resource_id))")
 
     cursor.execute("INSERT INTO resource (resource_name, resource_url, top_tag, bottom_tag, title_cut, date_cut) VALUES (?,?,?,?,?,?)", ('scientificrussia', 'https://scientificrussia.ru/news', "//div[@class='title']//a", "//div[@itemprop='articleBody']//p", "//h1[@itemprop='name headline']", "prop time"))
-    cursor.execute("INSERT INTO resource (resource_name, resource_url, top_tag, bottom_tag, title_cut, date_cut) VALUES (?,?,?,?,?,?)", ('nur', 'https://www.nur.kz/society/', "//article[@class='block-infinite__item-content']//a", "//p[@class='align-left formatted-body__paragraph']", "//h1[@class='main-headline js-main-headline']",  "datetime__wrapper"))
+    cursor.execute("INSERT INTO resource (resource_name, resource_url, top_tag, bottom_tag, title_cut, date_cut) VALUES (?,?,?,?,?,?)", ('nur', 'https://www.nur.kz/society/', "//article[@class='block-infinite__item-content']//a", "/html/body/div[2]/div/div[1]/div[1]/div/main/article", "//h1[@class='main-headline js-main-headline']",  "datetime__wrapper"))
 
     connection.commit()
 
@@ -86,7 +87,6 @@ def get_urls_from_db():
 
     return [item[0] for item in cursor.fetchall()]
 
-
 def get_tags_from_url(url):
     connection = sqlite3.connect('db.sqlite')
     cursor = connection.cursor()
@@ -96,7 +96,6 @@ def get_tags_from_url(url):
     connection.commit()
 
     return [item for item in cursor.fetchall()]
-
 
 def main():
     try:
