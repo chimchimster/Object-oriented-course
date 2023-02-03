@@ -179,8 +179,20 @@ def main():
         ValueError('DataBase already exists!')
 
     resource_values = StoreResourceValues()
-    resource_values.push_back(ResourceValue('nur', 'https://www.nur.kz/society/', 'ul,block-infinite__list', 'div,formatted-body io-article-body', 'h1,main-headline js-main-headline', 'time,datetime datetime--publication'))
-    resource_values.push_back(ResourceValue('scientificrussia', 'https://scientificrussia.ru/', 'div,announce-list with-image normal three-column', 'article,article', 'h1,', 'time,'))
+    resource_values.push_back(ResourceValue('nur',
+                                            'https://www.nur.kz/society/',
+                                            'ul,block-infinite__list',
+                                            'div,formatted-body io-article-body',
+                                            'h1,main-headline js-main-headline',
+                                            'time,datetime datetime--publication')
+                              )
+    resource_values.push_back(ResourceValue('scientificrussia',
+                                            'https://scientificrussia.ru/',
+                                            'div,announce-list with-image normal three-column',
+                                            'article,article',
+                                            'h1,',
+                                            'time,')
+                              )
 
     database.add_data_to_resource(resource_values)
     resource_data = database.get_data_for_parse()
