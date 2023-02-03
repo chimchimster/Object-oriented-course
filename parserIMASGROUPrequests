@@ -38,10 +38,9 @@ class ParseUniquePage:
         self.unique_page = unique_page
         self.title_class = title_class
         self.content_class = content_class
-        self.date_tag = date_tag
         self.date_class = date_class
+        self.date_tag = date_tag
         self.title_tag = title_tag
-        self.content_tag = content_tag
         self.content_tag = content_tag
         self.search_paragraph_tag = search_paragraph_tag
         self.data_collection = []
