@@ -98,7 +98,7 @@ class ParseUniquePage:
 
                     return new_date
         except:
-            pass
+            ValueError('Problem with changing type of date')
 
 
 
