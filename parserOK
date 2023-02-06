@@ -1,0 +1,37 @@
+# АЛГОРИТМ
+
+# 1. Интерфейс для загрузки аккаунтов, создание БД
+# 2. Парсинг каждой страницы
+# 3. Обновили таблицу базы данных
+# 4. Повторили
+
+import requests, re, mysql.connector
+
+from bs4 import BeautifulSoup
+
+ACCOUNTS_FOR_SCRAPING = ['https://ok.ru/orbakaiteofficial']
+
+class ParseAccount:
+    def __init__(self, page, name_class='profile-user-info_name', name_tag='h1', menu_class='mctc_navMenu', menu_tag='nav', data_class='mctc_navMenuSec',  a_tag='a'):
+        self.page = page
+        self.a_tag = a_tag
+        self.name_class = name_class
+        self.name_tag = name_tag
+        self.menu_class = menu_class
+        self.menu_tag = menu_tag
+        self.data_class = data_class
+        self.data_collection = []
+
+    def push_to_data_collection(self):
+        request = requests.get(self.page)
+        soup = BeautifulSoup(request.text, 'html.parser')
+        print(self.__dict__)
+
+        name = soup.find(self.a_tag, class_=self.name_class).find(self.name_tag)
+        data = soup.find(self.menu_tag, class_=self.menu_class).find_all(self.a_tag, self.data_class)
+        return {name.text: [(re.split('(\d+)',''.join(d.text.split('\xa0'))))[:2] for d in data if len(d.text.split('\xa0')) > 1]}
+
+
+p = ParseAccount('https://ok.ru/stas.mihailov.official', 'profile-user-info_name')
+print(p.push_to_data_collection())
+
