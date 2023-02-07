@@ -10,15 +10,13 @@ import requests
 from bs4 import BeautifulSoup
 from mysql.connector import connect, Error
 
-ACCOUNTS_FOR_SCRAPING = ['https://ok.ru/orbakaiteofficial']
-
 
 def db_decorator(func):
     def wrapper(*args, **kwargs):
         con = connect(
             host='localhost',
             user='root',
-            password=''
+            password='QweQwe!23'
         )
         try:
             result = func(*args, connection=con, *kwargs)
@@ -34,8 +32,9 @@ def db_decorator(func):
 
 
 class ParseAccount:
-    def __init__(self, page, name_class='profile-user-info_name', name_tag='h1', menu_class='mctc_navMenu', menu_tag='nav', data_class='mctc_navMenuSec',  a_tag='a'):
+    def __init__(self, page, account_id, name_class='profile-user-info_name', name_tag='h1', menu_class='mctc_navMenu', menu_tag='nav', data_class='mctc_navMenuSec',  a_tag='a'):
         self.page = page
+        self.account_id = account_id
         self.a_tag = a_tag
         self.name_class = name_class
         self.name_tag = name_tag
@@ -47,11 +46,27 @@ class ParseAccount:
     def push_to_data_collection(self):
         request = requests.get(self.page)
         soup = BeautifulSoup(request.text, 'html.parser')
-        print(self.__dict__)
 
         name = soup.find(self.a_tag, class_=self.name_class).find(self.name_tag)
         data = soup.find(self.menu_tag, class_=self.menu_class).find_all(self.a_tag, self.data_class)
-        return {name.text: [(re.split('(\d+)', ''.join(d.text.split('\xa0'))))[:2] for d in data if len(d.text.split('\xa0')) > 1]}
+
+        rough_data = [(re.split('(\d+)', ''.join(d.text.split('\xa0')))) for d in data]
+        normalized_data = self.normalize_data(rough_data)
+
+        self.data_collection.append((name.text, self.account_id, *normalized_data))
+
+
+    @staticmethod
+    def normalize_data(collection):
+        normalized_collection = []
+
+        for element in collection[1:]:
+            if len(element) == 1:
+                normalized_collection.append(element+['0'])
+            else:
+                normalized_collection.append(element)
+
+        return [element[1] for element in normalized_collection]
 
 
 class DataBase:
@@ -63,7 +78,7 @@ class DataBase:
 
         return cls._instance
 
-    def __init__(self, db_name='ok'):
+    def __init__(self, db_name):
         self._db_name = db_name
 
     @db_decorator
@@ -75,7 +90,7 @@ class DataBase:
         print('DATABASE SUCCESSFULLY CREATED')
 
     @db_decorator
-    def create_db_table(self, *args, **kwargs):
+    def create_table(self, *args, **kwargs):
         connection = kwargs.pop('connection')
         cursor = connection.cursor()
 
@@ -94,8 +109,20 @@ class DataBase:
             cursor.executemany(f"INSERT INTO {table_name} ({', '.join([col for col in columns])}) VALUES ({insert[:-1]})", collection)
         else:
             cursor.execute(f"INSERT INTO {table_name} ({', '.join([col for col in columns])}) VALUES ({insert[:-1]})", collection)
-        print("DATA SUCCESSFULLY ADDED TO DATABASE!")
+        print("DATA SUCCESSFULLY ADDED TO DATABASE")
 
+    @db_decorator
+    def get_data_for_parse(self, table_name, *args, **kwargs):
+        connection = kwargs.pop('connection')
+        cursor = connection.cursor()
+
+        cursor.execute(f"USE {self._db_name}")
+        cursor.execute(f"SELECT * FROM {table_name}")
+
+        return [item for item in cursor.fetchall()]
+
+
+    @db_decorator
     def drop_table(self, table_name: str, *args, **kwargs) -> None:
         connection = kwargs.pop('connection')
         cursor = connection.cursor()
@@ -108,25 +135,120 @@ class DataBase:
     def update_table(self, table_name: str, columns: tuple, collection: list, *args, **kwargs) -> None:
         connection = kwargs.pop('connection')
         cursor = connection.cursor()
-        
+
         columns = tuple([col + "='%s'" for col in columns])
         cursor.execute(f"USE {self._db_name}")
-        cursor.execute("UPDATE first SET name='JOPA' WHERE name='BALAKIREV';")
-        for data in collection:
-            cursor.execute(f"UPDATE {table_name} SET {', '.join([col for col in columns])} WHERE id=1;" % data)
+        cursor.executemany(f"UPDATE {table_name} SET {', '.join([col for col in columns])};" % collection)
         print("DATA SUCCESSFULLY UPDATED")
 
 
+def main():
+    database = DataBase('ok')
+    ACCOUNTS_FOR_SCRAPING = {'https://ok.ru/stas.mihailov.official',
+                             'https://ok.ru/mashaweber',
+                             'https://ok.ru/orbakaiteofficial',}
 
-d = DataBase()
+    # Creating DB
+    try:
+        database.create_db()
+    except Exception:
+        print('Database already exists')
+
+    # Creating tables
+    try:
+        database.create_table('accounts', 'account_id int NOT NULL AUTO_INCREMENT', 'link VARCHAR(2048) NOT NULL', 'PRIMARY KEY (account_id)')
+    except Exception:
+        print('Table already exists')
+    try:
+        database.create_table('data', 'data_id int NOT NULL AUTO_INCREMENT', 'account_id int NOT NULL', 'name VARCHAR(255)', 'followers int', 'photo int', 'notes int', 'gr int', 'games int', 'vid int', 'PRIMARY KEY (data_id)', 'FOREIGN KEY (account_id) REFERENCES accounts(account_id)')
+    except Exception:
+        print('Table already exists')
+
+    # Fill table accounts with initial data
+    for account in ACCOUNTS_FOR_SCRAPING:
+        database.send_to_table('accounts', ('link',), (account,))
+
+    # Drag info from accounts for scrapping
+    data_for_scrapping = database.get_data_for_parse('accounts')
+
+    # Collection for initial sending data to DB
+    send_collection = []
+
+    # Parse pages for initial DB migration
+    for id, page in data_for_scrapping:
+        page_obj = ParseAccount(page, id)
+        page_obj.push_to_data_collection()
+        send_collection.append(*page_obj.data_collection)
+
+    # Initial migration
+    database.send_to_table('data', ('name', 'account_id', 'followers', 'photo', 'notes', 'gr', 'games', 'vid',), send_collection)
+
+    # Updating existing data \ infinite parse
+    while True:
+        # Get data
+        data_for_scrapping = database.get_data_for_parse('accounts')
+
+        # Collection for new update (migration)
+        send_collection = []
+
+        # Parse page
+        for id, page in data_for_scrapping:
+            page_obj = ParseAccount(page, id)
+            page_obj.push_to_data_collection()
+            send_collection.append(*page_obj.data_collection)
+
+        print(send_collection)
+
+        # Migration (update)
+        database.update_table('accounts', ('name', 'account_id', 'followers', 'photo', 'notes', 'gr', 'games', 'vid',), send_collection)
+
+if __name__ == '__main__':
+    main()
+    #p = ParseAccount('https://ok.ru/stas.mihailov.official', 1)
+    #p.push_to_data_collection()
+    #print(p.data_collection)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #d.create_db_table('first', 'id int NOT NULL AUTO_INCREMENT', 'name VARCHAR(255)', 'PRIMARY KEY(id)')
 #d.send_to_table('first', ('name',), ('BALAKIREV',))
-d.update_table('first', ('name',), ('Pava',))
+#d.update_table('first', ('name',), ('Pava',))
 
-columns = ('id', 'name')
-columns = tuple([col + "='%s'" for col in columns])
-x = f"UPDATE TABLE h1 SET {', '.join([col for col in columns])}"
-print(x)
+#columns = ('id', 'name')
+#columns = tuple([col + "='%s'" for col in columns])
+#x = f"UPDATE TABLE h1 SET {', '.join([col for col in columns])}"
+#print(x)
 
 #p = ParseAccount('https://ok.ru/stas.mihailov.official', 'profile-user-info_name')
 #print(p.push_to_data_collection())
