@@ -16,7 +16,7 @@ def db_decorator(func):
         con = connect(
             host='localhost',
             user='root',
-            password=''
+            password='QweQwe!23'
         )
         try:
             result = func(*args, connection=con, *kwargs)
@@ -138,7 +138,7 @@ class DataBase:
 
         columns = tuple([col + "=%s" for col in columns])
         cursor.execute(f"USE {self._db_name}")
-        cursor.executemany(f"UPDATE {table_name} SET {', '.join([col for col in columns])};", collection)
+        cursor.executemany(f"UPDATE {table_name} SET {', '.join([col for col in columns])} WHERE account_id=%s;", collection)
         print("DATA SUCCESSFULLY UPDATED")
 
 
@@ -190,8 +190,10 @@ def main():
     print(generate_send_data())
     # Updating existing data \ infinite parse
     while True:
+        optimized_collection = [tuple(list(col)+[col[1]]) for col in generate_send_data()]
+        print(optimized_collection)
         # Migration (update)
-        database.update_table('data', ('name', 'account_id', 'followers', 'photo', 'notes', 'gr', 'games', 'vid',), generate_send_data())
+        database.update_table('data', ('name', 'account_id', 'followers', 'photo', 'notes', 'gr', 'games', 'vid',), optimized_collection)
 
 if __name__ == '__main__':
     main()
