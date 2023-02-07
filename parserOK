@@ -136,17 +136,19 @@ class DataBase:
         connection = kwargs.pop('connection')
         cursor = connection.cursor()
 
-        columns = tuple([col + "='%s'" for col in columns])
+        columns = tuple([col + "=%s" for col in columns])
         cursor.execute(f"USE {self._db_name}")
-        cursor.executemany(f"UPDATE {table_name} SET {', '.join([col for col in columns])};" % collection)
+        cursor.executemany(f"UPDATE {table_name} SET {', '.join([col for col in columns])};", collection)
         print("DATA SUCCESSFULLY UPDATED")
 
 
 def main():
     database = DataBase('ok')
-    ACCOUNTS_FOR_SCRAPING = {'https://ok.ru/stas.mihailov.official',
-                             'https://ok.ru/mashaweber',
-                             'https://ok.ru/orbakaiteofficial',}
+    ACCOUNTS_FOR_SCRAPPING = (
+                            ('https://ok.ru/stas.mihailov.official',),
+                            ('https://ok.ru/mashaweber',),
+                            ('https://ok.ru/orbakaiteofficial',),
+    )
 
     # Creating DB
     try:
@@ -165,42 +167,31 @@ def main():
         print('Table already exists')
 
     # Fill table accounts with initial data
-    for account in ACCOUNTS_FOR_SCRAPING:
-        database.send_to_table('accounts', ('link',), (account,))
+    database.send_to_table('accounts', ('link',), ACCOUNTS_FOR_SCRAPPING)
 
-    # Drag info from accounts for scrapping
-    data_for_scrapping = database.get_data_for_parse('accounts')
-
-    # Collection for initial sending data to DB
-    send_collection = []
-
-    # Parse pages for initial DB migration
-    for id, page in data_for_scrapping:
-        page_obj = ParseAccount(page, id)
-        page_obj.push_to_data_collection()
-        send_collection.append(*page_obj.data_collection)
-
-    # Initial migration
-    database.send_to_table('data', ('name', 'account_id', 'followers', 'photo', 'notes', 'gr', 'games', 'vid',), send_collection)
-
-    # Updating existing data \ infinite parse
-    while True:
-        # Get data
+    def generate_send_data():
+        # Drag info from accounts for scrapping
         data_for_scrapping = database.get_data_for_parse('accounts')
 
-        # Collection for new update (migration)
+        # Collection for initial sending data to DB
         send_collection = []
 
-        # Parse page
+        # Parse pages for initial DB migration
         for id, page in data_for_scrapping:
             page_obj = ParseAccount(page, id)
             page_obj.push_to_data_collection()
             send_collection.append(*page_obj.data_collection)
 
-        print(send_collection)
+        return send_collection
 
+    # Initial migration
+    database.send_to_table('data', ('name', 'account_id', 'followers', 'photo', 'notes', 'gr', 'games', 'vid',), generate_send_data())
+
+    print(generate_send_data())
+    # Updating existing data \ infinite parse
+    while True:
         # Migration (update)
-        database.update_table('accounts', ('name', 'account_id', 'followers', 'photo', 'notes', 'gr', 'games', 'vid',), send_collection)
+        database.update_table('data', ('name', 'account_id', 'followers', 'photo', 'notes', 'gr', 'games', 'vid',), generate_send_data())
 
 if __name__ == '__main__':
     main()
