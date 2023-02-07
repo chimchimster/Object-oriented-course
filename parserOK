@@ -5,10 +5,10 @@
 # 3. Обновили таблицу базы данных
 # 4. Повторили
 
-import requests, re
-
-from mysql.connector import connect, Error
+import re
+import requests
 from bs4 import BeautifulSoup
+from mysql.connector import connect, Error
 
 ACCOUNTS_FOR_SCRAPING = ['https://ok.ru/orbakaiteofficial']
 
@@ -18,7 +18,7 @@ def db_decorator(func):
         con = connect(
             host='localhost',
             user='root',
-            password=''
+            password='QweQwe!23'
         )
         try:
             result = func(*args, connection=con, *kwargs)
@@ -51,7 +51,7 @@ class ParseAccount:
 
         name = soup.find(self.a_tag, class_=self.name_class).find(self.name_tag)
         data = soup.find(self.menu_tag, class_=self.menu_class).find_all(self.a_tag, self.data_class)
-        return {name.text: [(re.split('(\d+)',''.join(d.text.split('\xa0'))))[:2] for d in data if len(d.text.split('\xa0')) > 1]}
+        return {name.text: [(re.split('(\d+)', ''.join(d.text.split('\xa0'))))[:2] for d in data if len(d.text.split('\xa0')) > 1]}
 
 
 class DataBase:
@@ -63,16 +63,14 @@ class DataBase:
 
         return cls._instance
 
-    def __init__(self, db_name='ok', host='localhost', user='root', password='QweQwe!23'):
+    def __init__(self, db_name='ok'):
         self._db_name = db_name
-        self._host = host
-        self._user = user
-        self._password = password
 
     @db_decorator
     def create_db(self, *args, **kwargs):
         connection = kwargs.pop('connection')
         cursor = connection.cursor()
+
         cursor.execute(f"CREATE DATABASE {self._db_name}")
         print('DATABASE SUCCESSFULLY CREATED')
 
@@ -80,12 +78,55 @@ class DataBase:
     def create_db_table(self, *args, **kwargs):
         connection = kwargs.pop('connection')
         cursor = connection.cursor()
+
         cursor.execute(f'USE {self._db_name}')
-        cursor.execute(f"CREATE TABLE {args[0]} ({', '.join([x for x in args[1:]])});")
+        cursor.execute(f"CREATE TABLE {args[0]} ({', '.join([arg for arg in args[1:]])});")
         print(f'TABLE {args[0]} SUCCESSFULLY CREATED')
 
+    @db_decorator
+    def send_to_table(self, table_name: str, columns: tuple, collection: list, *args, **kwargs) -> None:
+        connection = kwargs.pop('connection')
+        cursor = connection.cursor()
+
+        insert = '%s,' * len(columns)
+        cursor.execute(f"USE {self._db_name}")
+        if len(collection) > 1:
+            cursor.executemany(f"INSERT INTO {table_name} ({', '.join([col for col in columns])}) VALUES ({insert[:-1]})", collection)
+        else:
+            cursor.execute(f"INSERT INTO {table_name} ({', '.join([col for col in columns])}) VALUES ({insert[:-1]})", collection)
+        print("DATA SUCCESSFULLY ADDED TO DATABASE!")
+
+    def drop_table(self, table_name: str, *args, **kwargs) -> None:
+        connection = kwargs.pop('connection')
+        cursor = connection.cursor()
+
+        cursor.execute(f"USE {self._db_name}")
+        cursor.execute(f"DROP TABLE {table_name}")
+        print("TABLE SUCCESSFULLY DROPPED")
+
+    @db_decorator
+    def update_table(self, table_name: str, columns: tuple, collection: list, *args, **kwargs) -> None:
+        connection = kwargs.pop('connection')
+        cursor = connection.cursor()
+        
+        columns = tuple([col + "='%s'" for col in columns])
+        cursor.execute(f"USE {self._db_name}")
+        cursor.execute("UPDATE first SET name='JOPA' WHERE name='BALAKIREV';")
+        for data in collection:
+            cursor.execute(f"UPDATE {table_name} SET {', '.join([col for col in columns])} WHERE id=1;" % data)
+        print("DATA SUCCESSFULLY UPDATED")
+
+
+
 d = DataBase()
-d.create_db_table('first', 'id int', 'name VARCHAR(255)')
+#d.create_db_table('first', 'id int NOT NULL AUTO_INCREMENT', 'name VARCHAR(255)', 'PRIMARY KEY(id)')
+#d.send_to_table('first', ('name',), ('BALAKIREV',))
+d.update_table('first', ('name',), ('Pava',))
+
+columns = ('id', 'name')
+columns = tuple([col + "='%s'" for col in columns])
+x = f"UPDATE TABLE h1 SET {', '.join([col for col in columns])}"
+print(x)
 
 #p = ParseAccount('https://ok.ru/stas.mihailov.official', 'profile-user-info_name')
 #print(p.push_to_data_collection())
