@@ -10,7 +10,7 @@ def db_decorator(func):
         con = connect(
             host='localhost',
             user='root',
-            password='password'
+            password='QweQwe!23'
         )
         try:
             result = func(*args, connection=con, *kwargs)
@@ -99,7 +99,10 @@ class DataBase:
 
         insert = '%s,' * len(columns)
         cursor.execute(f"USE {self._db_name}")
-        cursor.executemany(f"REPLACE INTO {table_name} ({', '.join([col for col in columns])}) VALUES ({insert[:-1]})", collection)
+        if len(collection) > 1:
+            cursor.executemany(f"REPLACE INTO {table_name} ({', '.join([col for col in columns])}) VALUES ({insert[:-1]})", collection)
+        else:
+            cursor.execute(f"REPLACE INTO {table_name} ({', '.join([col for col in columns])}) VALUES ({insert[:-1]})", collection)
 
         print("DATA SUCCESSFULLY ADDED TO DATABASE")
 
