@@ -1,11 +1,5 @@
-# АЛГОРИТМ
-
-# 1. Интерфейс для загрузки аккаунтов, создание БД
-# 2. Парсинг каждой страницы
-# 3. Обновили таблицу базы данных
-# 4. Повторили
-
 import re
+import time
 import requests
 from bs4 import BeautifulSoup
 from mysql.connector import connect, Error
@@ -16,7 +10,7 @@ def db_decorator(func):
         con = connect(
             host='localhost',
             user='root',
-            password='QweQwe!23'
+            password='password'
         )
         try:
             result = func(*args, connection=con, *kwargs)
@@ -105,10 +99,8 @@ class DataBase:
 
         insert = '%s,' * len(columns)
         cursor.execute(f"USE {self._db_name}")
-        if len(collection) > 1:
-            cursor.executemany(f"INSERT INTO {table_name} ({', '.join([col for col in columns])}) VALUES ({insert[:-1]})", collection)
-        else:
-            cursor.execute(f"INSERT INTO {table_name} ({', '.join([col for col in columns])}) VALUES ({insert[:-1]})", collection)
+        cursor.executemany(f"REPLACE INTO {table_name} ({', '.join([col for col in columns])}) VALUES ({insert[:-1]})", collection)
+
         print("DATA SUCCESSFULLY ADDED TO DATABASE")
 
     @db_decorator
@@ -138,7 +130,10 @@ class DataBase:
 
         columns = tuple([col + "=%s" for col in columns])
         cursor.execute(f"USE {self._db_name}")
-        cursor.executemany(f"UPDATE {table_name} SET {', '.join([col for col in columns])} WHERE account_id=%s;", collection)
+        if len(collection) > 1:
+            cursor.executemany(f"UPDATE {table_name} SET {', '.join([col for col in columns])} WHERE account_id=%s;", collection)
+        else:
+            cursor.execute(f"UPDATE {table_name} SET {', '.join([col for col in columns])} WHERE account_id=%s;", collection)
         print("DATA SUCCESSFULLY UPDATED")
 
 
@@ -148,6 +143,9 @@ def main():
                             ('https://ok.ru/stas.mihailov.official',),
                             ('https://ok.ru/mashaweber',),
                             ('https://ok.ru/orbakaiteofficial',),
+                            ('https://ok.ru/profile/591994939911',),
+                            ('https://ok.ru/profile/600552696599',),
+                            ('https://ok.ru/profile/588470996921',)
     )
 
     # Creating DB
@@ -158,15 +156,16 @@ def main():
 
     # Creating tables
     try:
-        database.create_table('accounts', 'account_id int NOT NULL AUTO_INCREMENT', 'link VARCHAR(2048) NOT NULL', 'PRIMARY KEY (account_id)')
+        database.create_table('accounts', 'account_id int NOT NULL AUTO_INCREMENT', 'link VARCHAR(100) NOT NULL', 'PRIMARY KEY (account_id)', 'UNIQUE KEY unique_link (link)')
     except Exception:
         print('Table already exists')
     try:
-        database.create_table('data', 'data_id int NOT NULL AUTO_INCREMENT', 'account_id int NOT NULL', 'name VARCHAR(255)', 'followers int', 'photo int', 'notes int', 'gr int', 'games int', 'vid int', 'PRIMARY KEY (data_id)', 'FOREIGN KEY (account_id) REFERENCES accounts(account_id)')
+        database.create_table('data', 'data_id int NOT NULL AUTO_INCREMENT', 'account_id int NOT NULL', 'name VARCHAR(255)', 'followers int', 'photo int', 'notes int', 'gr int', 'games int', 'vid int', 'PRIMARY KEY (data_id)', 'FOREIGN KEY (account_id) REFERENCES accounts(account_id) ON DELETE CASCADE', 'UNIQUE KEY (account_id)')
     except Exception:
         print('Table already exists')
 
     # Fill table accounts with initial data
+    # also prevents duplicates if data already exists in DB
     database.send_to_table('accounts', ('link',), ACCOUNTS_FOR_SCRAPPING)
 
     def generate_send_data():
@@ -187,75 +186,13 @@ def main():
     # Initial migration
     database.send_to_table('data', ('name', 'account_id', 'followers', 'photo', 'notes', 'gr', 'games', 'vid',), generate_send_data())
 
-    print(generate_send_data())
     # Updating existing data \ infinite parse
     while True:
         optimized_collection = [tuple(list(col)+[col[1]]) for col in generate_send_data()]
-        print(optimized_collection)
+        time.sleep(10)
         # Migration (update)
         database.update_table('data', ('name', 'account_id', 'followers', 'photo', 'notes', 'gr', 'games', 'vid',), optimized_collection)
 
+
 if __name__ == '__main__':
     main()
-    #p = ParseAccount('https://ok.ru/stas.mihailov.official', 1)
-    #p.push_to_data_collection()
-    #print(p.data_collection)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#d.create_db_table('first', 'id int NOT NULL AUTO_INCREMENT', 'name VARCHAR(255)', 'PRIMARY KEY(id)')
-#d.send_to_table('first', ('name',), ('BALAKIREV',))
-#d.update_table('first', ('name',), ('Pava',))
-
-#columns = ('id', 'name')
-#columns = tuple([col + "='%s'" for col in columns])
-#x = f"UPDATE TABLE h1 SET {', '.join([col for col in columns])}"
-#print(x)
-
-#p = ParseAccount('https://ok.ru/stas.mihailov.official', 'profile-user-info_name')
-#print(p.push_to_data_collection())
-
-"""
-        try:
-            with connect(
-                host=self._host,
-                user=self._user,
-                password=self._password
-            ) as connection:
-                with connection.cursor() as cursor:
-                    cursor.execute(f"CREATE DATABASE {self._db_name}")
-                    print('DATABASE SUCCESSFULLY CREATED')
-        except Error as e:
-            print(e)
-"""
