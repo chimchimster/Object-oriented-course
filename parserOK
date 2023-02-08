@@ -3,7 +3,7 @@ import time
 import requests
 from bs4 import BeautifulSoup
 from mysql.connector import connect, Error
-
+https://us04web.zoom.us/j/79151643004?pwd=MbQtZxm8FpdDYWaSUacb0alpEsYK5F.1
 
 def db_decorator(func):
     def wrapper(*args, **kwargs):
