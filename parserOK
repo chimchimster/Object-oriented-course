@@ -205,9 +205,8 @@ def main(ACCOUNTS_FOR_SCRAPPING):
             if len(page_obj.data_collection[-1]) > 1:
                 collection.append(*page_obj.data_collection)
 
-
+        # If there is a navigation element "GOODS" then we add 0 to object to its index 2
         def normalize_different_pages(page_obj, groups_collection):
-            # If there is a navigation element "GOODS" then we add 0 to object to its index 2
             normalized_data = list(*page_obj.data_collection)
             normalized_data.insert(2, 0)
             page_obj.data_collection = (normalized_data,)
