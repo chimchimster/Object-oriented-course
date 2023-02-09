@@ -33,11 +33,13 @@ def db_decorator(func):
             return result
         finally:
             con.close()
+
     return wrapper
 
 
 class ParseAccount:
-    def __init__(self, page, account_id, name_class='profile-user-info_name', name_tag='h1', menu_class='mctc_navMenu', menu_tag='nav', data_class='mctc_navMenuSec',  a1_tag='a', a2_tag='a'):
+    def __init__(self, page, account_id, name_class='profile-user-info_name', name_tag='h1', menu_class='mctc_navMenu',
+                 menu_tag='nav', data_class='mctc_navMenuSec', a1_tag='a', a2_tag='a'):
         self.page = page
         self.account_id = account_id
         self.a1_tag = a1_tag
@@ -70,7 +72,7 @@ class ParseAccount:
 
         for element in collection[1:]:
             if len(element) == 1:
-                normalized_collection.append(element+['0'])
+                normalized_collection.append(element + ['0'])
             else:
                 normalized_collection.append(element)
 
@@ -130,7 +132,6 @@ class DataBase:
 
         return [item for item in cursor.fetchall()]
 
-
     @db_decorator
     def drop_table(self, table_name: str, *args, **kwargs) -> None:
         connection = kwargs.pop('connection')
@@ -148,9 +149,11 @@ class DataBase:
         columns = tuple([col + "=%s" for col in columns])
         cursor.execute(f"USE {self._db_name}")
         if len(collection) > 1:
-            cursor.executemany(f"UPDATE {table_name} SET {', '.join([col for col in columns])} WHERE account_id=%s;", collection)
+            cursor.executemany(f"UPDATE {table_name} SET {', '.join([col for col in columns])} WHERE account_id=%s;",
+                               collection)
         else:
-            cursor.execute(f"UPDATE {table_name} SET {', '.join([col for col in columns])} WHERE account_id=%s;", collection)
+            cursor.execute(f"UPDATE {table_name} SET {', '.join([col for col in columns])} WHERE account_id=%s;",
+                           collection)
         print("DATA SUCCESSFULLY UPDATED")
 
 
@@ -163,18 +166,27 @@ def main(ACCOUNTS_FOR_SCRAPPING):
         database.create_db()
     except Exception:
         print('Database already exists')
-  
+
     # Creating tables
     try:
-        database.create_table('accounts', 'account_id int NOT NULL AUTO_INCREMENT', 'link VARCHAR(100) NOT NULL', 'PRIMARY KEY (account_id)', 'UNIQUE KEY unique_link (link)')
+        database.create_table('accounts', 'account_id int NOT NULL AUTO_INCREMENT', 'link VARCHAR(100) NOT NULL',
+                              'PRIMARY KEY (account_id)', 'UNIQUE KEY unique_link (link)')
     except Exception:
         print('Table already exists')
     try:
-        database.create_table('data', 'data_id int NOT NULL AUTO_INCREMENT', 'account_id int NOT NULL', 'name VARCHAR(255)', 'followers int', 'photo int', 'notes int', 'account_groups int', 'games int', 'video int', 'PRIMARY KEY (data_id)', 'FOREIGN KEY (account_id) REFERENCES accounts(account_id) ON DELETE CASCADE', 'UNIQUE KEY (account_id)')
+        database.create_table('data', 'data_id int NOT NULL AUTO_INCREMENT', 'account_id int NOT NULL',
+                              'name VARCHAR(255)', 'followers int', 'photo int', 'notes int', 'account_groups int',
+                              'games int', 'video int', 'PRIMARY KEY (data_id)',
+                              'FOREIGN KEY (account_id) REFERENCES accounts(account_id) ON DELETE CASCADE',
+                              'UNIQUE KEY (account_id)')
     except Exception:
         print('Table already exists')
     try:
-        database.create_table('data_groups', 'group_id int NOT NULL AUTO_INCREMENT', 'account_id int NOT NULL', 'group_name VARCHAR(255)', 'followers int', 'goods int','themes int', 'photo int', 'video int', 'PRIMARY KEY (group_id)', 'FOREIGN KEY (account_id) REFERENCES accounts(account_id) ON DELETE CASCADE', 'UNIQUE KEY (account_id)')
+        database.create_table('data_groups', 'group_id int NOT NULL AUTO_INCREMENT', 'account_id int NOT NULL',
+                              'group_name VARCHAR(255)', 'followers int', 'goods int', 'themes int', 'photo int',
+                              'video int', 'PRIMARY KEY (group_id)',
+                              'FOREIGN KEY (account_id) REFERENCES accounts(account_id) ON DELETE CASCADE',
+                              'UNIQUE KEY (account_id)')
     except Exception:
         print('Table already exists')
 
@@ -190,8 +202,16 @@ def main(ACCOUNTS_FOR_SCRAPPING):
         accounts_collection, groups_collection = [], []
 
         def add_if_not_empty(collection, page_obj):
-            if len(*page_obj.data_collection) != 0 or len(*page_obj.data_collection) != 1:
+            if len(page_obj.data_collection[-1]) > 1:
                 collection.append(*page_obj.data_collection)
+
+
+        def normalize_different_pages(page_obj, groups_collection):
+            # If there is a navigation element "GOODS" then we add 0 to object to its index 2
+            normalized_data = list(*page_obj.data_collection)
+            normalized_data.insert(2, 0)
+            page_obj.data_collection = (normalized_data,)
+            add_if_not_empty(groups_collection, page_obj)
 
         # Parse pages for initial DB migration
         for id, page in data_for_scrapping:
@@ -199,39 +219,41 @@ def main(ACCOUNTS_FOR_SCRAPPING):
                 page_obj = ParseAccount(page, id)
                 page_obj.push_to_data_collection()
                 add_if_not_empty(accounts_collection, page_obj)
-                print(page_obj.data_collection)
+
             except:
                 try:
                     page_obj = ParseAccount(page, id, 'group-name_t', 'h1', 'mctc_navMenu __groups', 'nav', 'mctc_navMenuSec', 'div', 'span')
                     page_obj.push_to_data_collection()
-                    if len(*page_obj.data_collection) < 3:
+                    if len(page_obj.data_collection[-1]) == 6:
+                        normalize_different_pages(page_obj, groups_collection)
+
+                    # If there is another cluster which is used to navigate on page
+                    if len(page_obj.data_collection[-1]) <= 3:
                         page_obj = ParseAccount(page, id, 'group-name_t', 'h1', 'mctc_navMenu __groups', 'nav', 'mctc_navMenuSec', 'div', 'a')
                         page_obj.push_to_data_collection()
-
-                        # If there is no navigation element "GOODS" then we add 0 to object
-                        normalized_data = list(*page_obj.data_collection)
-                        normalized_data.insert(2, 0)
-                        page_obj.data_collection = (normalized_data,)
-                        add_if_not_empty(groups_collection, page_obj)
-                        print(page_obj.data_collection)
+                        if len(page_obj.data_collection[-1]) != 7:
+                            # If there is no navigation element "GOODS" then we add 0 to object
+                            normalize_different_pages(page_obj, groups_collection)
+                        else:
+                            add_if_not_empty(groups_collection, page_obj)
 
                     groups_collection.append(*page_obj.data_collection)
                 except Exception:
-                        print(f'The page {page} responded 404. It is not exists')
-
-        print(accounts_collection, groups_collection)
+                    print('Problem with page occured!')
 
         return accounts_collection, groups_collection
 
+    # Generate collections of accounts and groups
+    collection_of_accounts, collection_of_groups = generate_send_data()
+
     # Initial migration
-    database.send_to_table('data', ('name', 'account_id', 'followers', 'photo', 'notes', 'account_groups', 'games', 'video',), generate_send_data()[0])
-    database.send_to_table('data_groups', ('group_name', 'account_id', 'goods', 'themes', 'photo', 'video', 'followers',), generate_send_data()[1])
+    database.send_to_table('data', ('name', 'account_id', 'followers', 'photo', 'notes', 'account_groups', 'games', 'video',), collection_of_accounts)
+    database.send_to_table('data_groups', ('group_name', 'account_id', 'goods', 'themes', 'photo', 'video', 'followers',), collection_of_groups)
 
     # If we need infinite parse for our database
     """
-    count = 0
     # Updating existing data \ infinite parse
-    while count < 1:
+    while True:
         # Optimize both collections for updating
         accounts_optimized_collection = [tuple(list(col)+[col[1]]) for col in generate_send_data()[0]]
         groups_optimized_collection = [tuple(list(col)+[col[1]]) for col in generate_send_data()[1]]
@@ -239,98 +261,10 @@ def main(ACCOUNTS_FOR_SCRAPPING):
         # Migration (update)
         database.update_table('data', ('name', 'account_id', 'followers', 'photo', 'notes', 'account_groups', 'games', 'video',), accounts_optimized_collection)
         database.update_table('data_groups', ('group_name', 'account_id', 'goods', 'themes', 'photo', 'video', 'followers',), groups_optimized_collection)
-        count += 1
     """
 
 
 if __name__ == '__main__':
     with open('accounts_for_scarpping.txt', 'r') as accs:
         accounts_for_scarpping = tuple([(line.strip(),) for line in accs.readlines()])
-        acci = (
-            ('https://ok.ru/profile/563546794985',),
-            ('https://ok.ru/profile/561990603546',),
-            ('https://ok.ru/group51788693373143',),
-            ('https://ok.ru/riddernavsegda',),
-            ('https://ok.ru/petropavlovsk',),
-            ('https://ok.ru/adminykz',),
-
-        )
-        main(acci)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#d.create_db_table('first', 'id int NOT NULL AUTO_INCREMENT', 'name VARCHAR(255)', 'PRIMARY KEY(id)')
-#d.send_to_table('first', ('name',), ('BALAKIREV',))
-#d.update_table('first', ('name',), ('Pava',))
-
-#columns = ('id', 'name')
-#columns = tuple([col + "='%s'" for col in columns])
-#x = f"UPDATE TABLE h1 SET {', '.join([col for col in columns])}"
-#print(x)
-
-#p = ParseAccount('https://ok.ru/stas.mihailov.official', 'profile-user-info_name')
-#print(p.push_to_data_collection())
-
-"""
-        try:
-            with connect(
-                host=self._host,
-                user=self._user,
-                password=self._password
-            ) as connection:
-                with connection.cursor() as cursor:
-                    cursor.execute(f"CREATE DATABASE {self._db_name}")
-                    print('DATABASE SUCCESSFULLY CREATED')
-        except Error as e:
-            print(e)
-"""
-
-"""
-        if len(collection) > 1:
-            cursor.executemany(f"INSERT INTO {table_name} ({', '.join([col for col in columns])}) VALUES ({insert[:-1]})", collection)
-        else:
-            cursor.execute(f"INSERT INTO {table_name} ({', '.join([col for col in columns])}) VALUES ({insert[:-1]})", collection)
-        
-"""
-
-"""
-        p1 = ParseAccount('https://ok.ru/karagandy', 1, 'group-name_t', 'h1', 'mctc_navMenu __groups', 'nav', 'mctc_navMenuSec', 'div', 'span')
-        p2 = ParseAccount('https://ok.ru/profile/419821193412', 2)
-        p1.push_to_data_collection()
-        p2.push_to_data_collection()
-        print(p1.data_collection)
-        print(p2.data_collection)
-"""
+        main(accounts_for_scarpping)
