@@ -255,8 +255,8 @@ def main(ACCOUNTS_FOR_SCRAPPING):
     # Updating existing data \ infinite parse
     while True:
         # Optimize both collections for updating
-        accounts_optimized_collection = [tuple(list(col)+[col[1]]) for col in generate_send_data()[0]]
-        groups_optimized_collection = [tuple(list(col)+[col[1]]) for col in generate_send_data()[1]]
+        accounts_optimized_collection = [tuple(list(col)+[col[1]]) for col in collection_of_account]
+        groups_optimized_collection = [tuple(list(col)+[col[1]]) for col in collection_of_groups]
 
         # Migration (update)
         database.update_table('data', ('name', 'account_id', 'followers', 'photo', 'notes', 'account_groups', 'games', 'video',), accounts_optimized_collection)
