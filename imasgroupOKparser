@@ -151,12 +151,7 @@ def main(pages):
         if page_obj.data_collection['Имя'] != '':
             collection_to_send.append(list(page_obj.data_collection.values()))
 
-    count = 1
     for page in pages:
-        if count % 10 == 0:
-            database.send_to_table('accounts', ('Имя', 'Ссылка', 'Участники', 'Темы', 'Фото', 'Видео', 'Товары', 'Ссылки', 'Друзья', 'Группы', 'Игры',
-            'Музыка', 'Подарки'), collection_to_send)
-        count += 1
         try:
             page_obj = ParseAccount(page)
             page_obj.push_data_to_collection()
