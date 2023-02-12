@@ -146,7 +146,7 @@ def main(pages):
     # Store collection to send to DB
     collection_to_send = []
 
-    # Update only collections which page responded with status code 200
+    # Update collection
     def update_collection_to_send(page_obj):
         if page_obj.data_collection['Имя'] != '':
             collection_to_send.append(page_obj.data_collection)
