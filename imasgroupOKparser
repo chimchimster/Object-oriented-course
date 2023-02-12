@@ -1,0 +1,181 @@
+import re
+import time
+import requests
+from bs4 import BeautifulSoup
+from mysql.connector import connect, Error
+
+
+def time_decorator(func):
+    def wrapper(*args, **kwargs):
+        start = time.perf_counter()
+        result = func(*args, **kwargs)
+        end = time.perf_counter()
+        total = end - start
+        print(f'FUNC {func.__name__} TIME IS {total}')
+        return result
+    return wrapper
+
+
+def db_decorator(func):
+    def wrapper(*args, **kwargs):
+        con = connect(
+            host='localhost',
+            user='root',
+            password='QweQwe!23'
+        )
+        try:
+            result = func(*args, connection=con, *kwargs)
+        except Error as e:
+            print(e)
+            print('SQL failed!')
+        else:
+            con.commit()
+            return result
+        finally:
+            con.close()
+
+    return wrapper
+
+
+class ParseAccount:
+    def __init__(self, page, name_class='profile-user-info_name', name_tag='h1', menu_class='mctc_navMenu',
+                 menu_tag='nav', data_class='mctc_navMenuSec', a1_tag='a', a2_tag='a'):
+        self.page = page
+        self.name_class = name_class
+        self.name_tag = name_tag
+        self.menu_class = menu_class
+        self.menu_tag = menu_tag
+        self.data_class = data_class
+        self.a1_tag = a1_tag
+        self.a2_tag = a2_tag
+        self.data_collection = {'Имя': '', 'Ссылка': '', 'Участники': 0, 'Темы': 0, 'Фото': 0, 'Видео': 0, 'Товары': 0, 'Ссылки': 0, 'Друзья': 0,
+                       'Группы': 0, 'Игры': 0, 'Музыка': 0, 'Подарки': 0}
+
+    def push_data_to_collection(self):
+        request = requests.get(self.page)
+        if request.status_code == 200:
+            soup = BeautifulSoup(request.text, 'html.parser')
+
+            name = soup.find(self.a1_tag, class_=self.name_class).find(self.name_tag)
+            data = soup.find(self.menu_tag, class_=self.menu_class).find_all(self.a2_tag, self.data_class)
+
+            rough_data = [(re.split('(\d+)', ''.join(d.text.split('\xa0')))) for d in data]
+
+            normalized_data = self.normalize_data(name, rough_data)
+            self.update_db_collection(normalized_data)
+        else:
+            return
+
+    def normalize_data(self, name, collection):
+        normalized_collection = [['Имя', name.text], ['Ссылка', self.page]]
+
+        for element in collection[1:]:
+            if len(element) == 1:
+                normalized_collection.append(element + ['0'])
+            else:
+                normalized_collection.append(element)
+
+        return [element[:2] for element in normalized_collection]
+
+
+    def update_db_collection(self, collection):
+        for data in collection:
+            if data[0] in self.data_collection:
+                self.data_collection[data[0]] = data[1]
+
+
+class DataBase:
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super().__new__(cls)
+
+        return cls._instance
+
+    def __init__(self, db_name):
+        self._db_name = db_name
+
+    @db_decorator
+    def create_db(self, *args, **kwargs):
+        connection = kwargs.pop('connection')
+        cursor = connection.cursor()
+
+        cursor.execute(f"CREATE DATABASE {self._db_name}")
+        print('DATABASE SUCCESSFULLY CREATED')
+
+    @db_decorator
+    def create_table(self, *args, **kwargs):
+        connection = kwargs.pop('connection')
+        cursor = connection.cursor()
+
+        cursor.execute(f'USE {self._db_name}')
+        cursor.execute(f"CREATE TABLE {args[0]} ({', '.join([arg for arg in args[1:]])});")
+        print(f'TABLE {args[0]} SUCCESSFULLY CREATED')
+
+    @db_decorator
+    def send_to_table(self, table_name: str, columns: [tuple, list], collection: [tuple, list], *args, **kwargs) -> None:
+        connection = kwargs.pop('connection')
+        cursor = connection.cursor()
+
+        insert = '%s,' * len(columns)
+        cursor.execute(f"USE {self._db_name}")
+        if len(collection) > 1:
+            cursor.executemany(f"REPLACE INTO {table_name} ({', '.join([col for col in columns])}) VALUES ({insert[:-1]})", collection)
+        else:
+            cursor.execute(f"REPLACE INTO {table_name} ({', '.join([col for col in columns])}) VALUES ({insert[:-1]})", collection)
+
+        print("DATA SUCCESSFULLY ADDED TO DATABASE")
+
+@time_decorator
+def main(pages):
+    database = DataBase('ok')
+
+    # Creating DB
+    try:
+        database.create_db()
+    except Exception:
+        print('Database already exists')
+
+    # Creating table
+    try:
+        database.create_table('accounts', 'Имя VARCHAR(255)', 'Ссылка VARCHAR(255)', 'Участники int', 'Темы int', 'Фото int', 'Видео int', 'Товары int', 'Ссылки int', 'Друзья int', 'Группы int', 'Игры int', 'Музыка int', 'Подарки int', 'UNIQUE KEY (Ссылка)')
+    except Exception:
+        print('Table already exists')
+
+    # Store collection to send to DB
+    collection_to_send = []
+
+    # Update only collections which page responded with status code 200
+    def update_collection_to_send(page_obj):
+        if page_obj.data_collection['Имя'] != '':
+            collection_to_send.append(page_obj.data_collection)
+
+    for page in pages:
+        try:
+            page_obj = ParseAccount(page)
+            page_obj.push_data_to_collection()
+            update_collection_to_send(page_obj)
+        except:
+            try:
+                page_obj = ParseAccount(page, 'group-name_t', 'h1', 'mctc_navMenu __groups', 'nav',
+                            'mctc_navMenuSec', 'div', 'span')
+                page_obj.push_data_to_collection()
+                if sum([x for x in page_obj.data_collection.values()][2:]) == 0:
+                    page_obj = ParseAccount(page, 'group-name_t', 'h1', 'mctc_navMenu __groups', 'nav',
+                                            'mctc_navMenuSec', 'div', 'a')
+                    page_obj.push_data_to_collection()
+                update_collection_to_send(page_obj)
+            except:
+                print(f'PAGE {page} RESPONDED 404')
+
+    collection_to_send = [[x for x in col.values()] for col in collection_to_send]
+
+    # Migration
+    database.send_to_table('accounts', ('Имя', 'Ссылка', 'Участники', 'Темы', 'Фото', 'Видео', 'Товары', 'Ссылки', 'Друзья', 'Группы', 'Игры', 'Музыка', 'Подарки'),
+                           collection_to_send)
+
+if __name__ == '__main__':
+    with open('accounts_for_scarpping.txt', 'r') as accounts:
+        pages = tuple([line.strip() for line in accounts.readlines()])
+        main(pages)
