@@ -149,9 +149,14 @@ def main(pages):
     # Update collection
     def update_collection_to_send(page_obj):
         if page_obj.data_collection['Имя'] != '':
-            collection_to_send.append(page_obj.data_collection)
+            collection_to_send.append(list(page_obj.data_collection.values()))
 
+    count = 1
     for page in pages:
+        if count % 10 == 0:
+            database.send_to_table('accounts', ('Имя', 'Ссылка', 'Участники', 'Темы', 'Фото', 'Видео', 'Товары', 'Ссылки', 'Друзья', 'Группы', 'Игры',
+            'Музыка', 'Подарки'), collection_to_send)
+        count += 1
         try:
             page_obj = ParseAccount(page)
             page_obj.push_data_to_collection()
@@ -161,15 +166,19 @@ def main(pages):
                 page_obj = ParseAccount(page, 'group-name_t', 'h1', 'mctc_navMenu __groups', 'nav',
                             'mctc_navMenuSec', 'div', 'span')
                 page_obj.push_data_to_collection()
-                if sum([x for x in page_obj.data_collection.values()][2:]) == 0:
+                if sum(list(page_obj.data_collection.values())[2:]) == 0:
                     page_obj = ParseAccount(page, 'group-name_t', 'h1', 'mctc_navMenu __groups', 'nav',
                                             'mctc_navMenuSec', 'div', 'a')
                     page_obj.push_data_to_collection()
                 update_collection_to_send(page_obj)
             except:
-                print(f'PAGE {page} RESPONDED 404')
-
-    collection_to_send = [[x for x in col.values()] for col in collection_to_send]
+                try:
+                    page_obj = ParseAccount(page, 'group-name_t', 'h1', 'mctc_navMenu __groups', 'nav',
+                                            'mctc_navMenuSec', 'div', 'h1')
+                    page_obj.push_data_to_collection()
+                    update_collection_to_send(page_obj)
+                except:
+                    print(f'PAGE {page} RESPONDED 404')
 
     # Migration
     database.send_to_table('accounts', ('Имя', 'Ссылка', 'Участники', 'Темы', 'Фото', 'Видео', 'Товары', 'Ссылки', 'Друзья', 'Группы', 'Игры', 'Музыка', 'Подарки'),
