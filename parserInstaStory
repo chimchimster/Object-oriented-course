@@ -1,0 +1,97 @@
+import os
+import time
+import random
+import instaloader
+from pytesseract import pytesseract
+from PIL import Image
+
+loader = instaloader.Instaloader()
+
+class SignIn:
+    def __init__(self, username: str, password: str) -> None:
+        self.username = username
+        self.password = password
+
+    def sign_in(self):
+        # Login into account
+        loader.login(self.username, self.password)
+
+
+class LoadStoriesOfUser:
+    def __init__(self, target: str) -> None:
+        self.target = target
+
+    def download_stories_of_target(self):
+        # Simulate human behaviour - wait from 3 to 10 seconds
+        time.sleep(random.randint(1,10))
+
+        profile = instaloader.Profile.from_username(loader.context, self.target)
+
+        time.sleep(random.randint(1, 10))
+
+        loader.download_stories(userids=[profile.userid], filename_target=f'{profile.username}/stories')
+
+
+class ImageHandling:
+    PATH_TO_TESSERACT = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+
+    def __init__(self, path_to_folder: str) -> None:
+        self.path_to_folder = path_to_folder
+
+    def collect_paths_of_images(self):
+        return [self.path_to_folder + '/' + jpg for jpg in os.listdir(self.path_to_folder) if jpg.endswith('.jpg')]
+
+    def extract_text_from_images(self):
+        text_image = {}
+        paths = self.collect_paths_of_images()
+
+        # Point tessaract_cmd to tessaract.exe
+        pytesseract.tesseract_cmd = self.PATH_TO_TESSERACT
+
+        for path in paths:
+            # Open image with Pillow
+            image = Image.open(path)
+
+            # Extract text from image
+            text = pytesseract.image_to_string(image, lang='rus+eng')
+            text = text.replace('\n', '')
+
+            if text:
+                # Update text_image dictionary
+                text_image[path] = text
+
+        return text_image
+
+    def create_txt_files(self):
+        data = self.extract_text_from_images()
+        for key, value in data.items():
+            with open(key.rstrip('jpg') + 'txt', 'w') as file:
+                file.write(value)
+
+
+def main(accounts):
+    # Sign into account
+    try:
+        signin = SignIn('login', 'password')
+        signin.sign_in()
+    except Exception:
+        print('Probably account has been restricted')
+
+    # Iterate over acounts
+    for account in accounts:
+        try:
+            # Trying to load stories on localhost
+            user = LoadStoriesOfUser(account)
+            user.download_stories_of_target()
+        except:
+            try:
+                # Trying to drag text from stored images
+                text_files = ImageHandling(account + '/stories')
+                text_files.create_txt_files()
+            except Exception:
+                print(f'Error with account {account} occurred')
+
+
+if __name__ == '__main__':
+    ACCOUNTS = ['egorkaship', 'cristiano']
+    main(ACCOUNTS)
